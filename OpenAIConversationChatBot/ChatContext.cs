@@ -10,20 +10,16 @@ namespace OpenAIConversationChatBot
         }
 
         public DbSet<Chat> Chats { get; set; }
+        public DbSet<Context> Contexts { get; set; }
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
             builder.Entity<Chat>().HasKey(m => m.Id);
-            builder.Entity<Chat>().HasData(
-                new Chat[]
-                {
-                    new Chat()
-                    {
-                        Id = 1,
-                        Role = "system",
-                        Content = "You are a friend having a conversation with the user and should respond impersonating a friend."
-                    }
-                });
+            builder.Entity<Chat>().HasOne(x => x.Context)
+                .WithMany();
+
+            builder.Entity<Context>().HasKey(x => x.Id);
+            builder.Entity<Context>();
 
             base.OnModelCreating(builder);
         }

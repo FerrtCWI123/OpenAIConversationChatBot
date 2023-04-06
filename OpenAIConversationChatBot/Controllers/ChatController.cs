@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using OpenAIConversationChatBot;
 using OpenAIConversationChatBot.DTOs;
@@ -9,7 +10,7 @@ using System.Text.Json;
 namespace GPTConversationChatBot.Controllers
 {
     [ApiController]
-    [Route("[controller]")]
+    [Route("api/[controller]")]
     public class ChatController : ControllerBase
     {
         private readonly ILogger<ChatController> _logger;
@@ -24,20 +25,64 @@ namespace GPTConversationChatBot.Controllers
             _chatContext = chatContext;
         }
 
-        [HttpPost]
-        public async Task<string> PostAsync([FromBody] string message)
+        [HttpGet("{ContextId}")]
+        public async Task<IActionResult> GetAsync([FromRoute(Name = "ContextId")] int contextId)
         {
-            return await GetOpenAIAnswer(message);
+            var chats = _chatContext.Chats.Where(x => x.ContextId == contextId).OrderBy(x => x.Id).Include(x => x.Context);
+
+            return Ok(chats);
         }
 
-        private async Task<string> GetOpenAIAnswer(string text)
+        [HttpGet]
+        public async Task<IActionResult> GetAsync()
+        {
+            var chats = _chatContext.Chats.OrderBy(x => x.Context).ThenBy(x => x.Id).Include(x => x.Context);
+
+            return Ok(chats);
+        }
+
+        [HttpPost("{ContextId}")]
+        public async Task<IActionResult> PostAsync([FromRoute(Name = "ContextId")] int contextId, [FromBody] string message)
+        {
+            return await GetOpenAIAnswer(contextId, message);
+        }
+
+        [HttpDelete("{ContextId}")]
+        public async Task<IActionResult> Delete([FromRoute(Name = "ContextId")] int contextId)
+        {
+            var chatsToDelete = _chatContext.Chats.Where(x => x.ContextId == contextId);
+            _chatContext.RemoveRange(chatsToDelete);
+            _chatContext.SaveChanges();
+            return NoContent();
+        }
+
+        private async Task<IActionResult> GetOpenAIAnswer(int contextId, string text)
         {
             try
             {
-                var chat = _chatContext.Chats.Select(x => x).ToList();
+                var context = _chatContext.Contexts.FirstOrDefault(x => x.Id == contextId);
 
-                chat.Add(new Chat()
+                if (context == null)
+                    return BadRequest($"Context \"{contextId}\" does not exist.");
+
+                var chats = _chatContext.Chats
+                    .Where(x => x.ContextId == contextId)
+                    .Select(x => x)
+                    .ToList();
+
+                if (!chats.Any())
                 {
+                    chats.Add(new Chat()
+                    {
+                        ContextId = contextId,
+                        Role = "system",
+                        Content = context.Prompt
+                    });
+                }
+
+                chats.Add(new Chat()
+                {
+                    ContextId = contextId,
                     Role = "user",
                     Content = text
                 });
@@ -46,7 +91,7 @@ namespace GPTConversationChatBot.Controllers
                 new
                 {
                     model = "gpt-3.5-turbo",
-                    messages = chat.Select(x => new Message() { role = x.Role, content = x.Content })
+                    messages = chats.Select(x => new Message() { role = x.Role, content = x.Content })
                 });
 
                 var request = new StringContent(requestContent, Encoding.UTF8, "application/json");
@@ -56,23 +101,24 @@ namespace GPTConversationChatBot.Controllers
                 var responseData = await response.Content.ReadFromJsonAsync<OpenAIResponseDTO>((JsonSerializerOptions?)null);
                 var textContent = responseData.Choices.FirstOrDefault().Message.content;
 
-                chat.Add(new Chat()
+                chats.Add(new Chat()
                 {
+                    ContextId = contextId,
                     Role = "assistant",
                     Content = textContent
                 });
 
-                _chatContext.Chats.UpdateRange(chat);
+                _chatContext.Chats.UpdateRange(chats);
                 await _chatContext.SaveChangesAsync();
 
                 _logger.LogDebug(textContent);
 
-                return textContent;
+                return Ok(textContent);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Something went wrong");
-                return null;
+                throw;
             }
         }
     }
