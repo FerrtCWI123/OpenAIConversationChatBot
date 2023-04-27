@@ -22,7 +22,8 @@ namespace GPTConversationChatBot.Controllers
     {
         private const string USR_MESSAGE = "user";
         private const string SYS_MESSAGE = "system";
-        private const int INTERATION_LIMIT = 10;
+        private const string CONTEXT_MESSAGE = "context";
+        private const int INTERATION_LIMIT = 5;
 
         private readonly ILogger<ChatController> _logger;
         private readonly HttpClient _httpClient;
@@ -143,7 +144,7 @@ namespace GPTConversationChatBot.Controllers
             try
             {
                 string chatId = id;
-                OpenAIAPI api = new OpenAIAPI("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");
+                OpenAIAPI api = new OpenAIAPI("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");
                 var chat = api.Chat.CreateConversation();
 
                 List<Chat> conversation = _memoryCache.Get<List<Chat>>(chatId);
@@ -157,6 +158,11 @@ namespace GPTConversationChatBot.Controllers
                 {
                     if(conversation.Where(p => p.Role.Equals(USR_MESSAGE)).Count() > INTERATION_LIMIT)
                     {
+                        chat.AppendUserInput("Give me the context of this conversation for use later here");
+                        string responseContext = await chat.GetResponseFromChatbotAsync();
+
+                        _memoryCache.Set(chatId, new List<Chat> { new Chat { Role = CONTEXT_MESSAGE, Content = message } });
+
                         return BadRequest($"O numero maximo de interações({INTERATION_LIMIT}) do usuário foi atingido");
                     }
 
@@ -174,7 +180,7 @@ namespace GPTConversationChatBot.Controllers
 
                 _memoryCache.Set(chatId, conversation);
 
-                return Ok($"Friend: {response}");
+                return Ok($"{response}");
             }
             catch (Exception ex)
             {
@@ -195,7 +201,7 @@ namespace GPTConversationChatBot.Controllers
                     return BadRequest($"Context \"{contextId}\" does not exist.");
 
                 string chatId = Guid.NewGuid().ToString();
-                OpenAIAPI api = new OpenAIAPI("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");
+                OpenAIAPI api = new OpenAIAPI("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");
                 var chat = api.Chat.CreateConversation();
 
                 List<Chat> conversation = new List<Chat>();
