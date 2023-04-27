@@ -221,12 +221,11 @@ namespace GPTConversationChatBot.Controllers
 
                 _memoryCache.Set(chatId, conversation);
 
-                //conversation.Add(new Chat { Role = USR_MESSAGE, Content = context.Prompt });
                 chat.AppendUserInput(context.Prompt);
 
                 string response = await chat.GetResponseFromChatbotAsync();
 
-                conversation.Add(new Chat { Role = SYS_MESSAGE, Content = response });
+                conversation.Add(new Chat { Role = CONTEXT_MESSAGE, Content = response });
 
                 _memoryCache.Set(chatId, conversation);
 
