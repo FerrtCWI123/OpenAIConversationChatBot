@@ -12,6 +12,7 @@ using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Text;
 using System.Text.Json;
+using static System.Net.Mime.MediaTypeNames;
 
 namespace GPTConversationChatBot.Controllers
 {
@@ -21,6 +22,7 @@ namespace GPTConversationChatBot.Controllers
     {
         private const string USR_MESSAGE = "user";
         private const string SYS_MESSAGE = "system";
+        private const int INTERATION_LIMIT = 10;
 
         private readonly ILogger<ChatController> _logger;
         private readonly HttpClient _httpClient;
@@ -135,44 +137,87 @@ namespace GPTConversationChatBot.Controllers
         }
 
 
-        [HttpPost("Chat")]
-        public async Task<IActionResult> PostConversationAsync([FromBody] string message)
+        [HttpPost("Message/{id}")]
+        public async Task<IActionResult> PostConversationAsync(string id, [FromBody] string message)
         {
-            string chatId = "TesteChatKey";
-            OpenAIAPI api = new OpenAIAPI("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");
-            var chat = api.Chat.CreateConversation();
-
-            ListDictionary conversation = _memoryCache.Get<ListDictionary>(chatId);
-
-            if (conversation == null)
+            try
             {
-                //chatId = Guid.NewGuid().ToString();
+                string chatId = id;
+                OpenAIAPI api = new OpenAIAPI("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");
+                var chat = api.Chat.CreateConversation();
 
-                _memoryCache.Set(chatId, new ListDictionary());
-                conversation = new ListDictionary();
+                List<Chat> conversation = _memoryCache.Get<List<Chat>>(chatId);
+
+                if (conversation == null)
+                {
+                    _memoryCache.Set(chatId, new List<Chat>());
+                    conversation = new List<Chat>();
+                }
+                else
+                {
+                    if(conversation.Where(p => p.Role.Equals(USR_MESSAGE)).Count() > INTERATION_LIMIT)
+                    {
+                        return BadRequest($"O numero maximo de interações({INTERATION_LIMIT}) do usuário foi atingido");
+                    }
+
+                    foreach (var msg in conversation)
+                        chat.AppendMessage(new ChatMessage(ChatMessageRole.FromString(msg.Role), msg.Content));
+                }
+
+
+                conversation.Add(new Chat { Role = USR_MESSAGE, Content = message });
+                chat.AppendUserInput(message);
+
+                string response = await chat.GetResponseFromChatbotAsync();
+
+                conversation.Add(new Chat { Role = SYS_MESSAGE, Content = message });
+
+                _memoryCache.Set(chatId, conversation);
+
+                return Ok($"Friend: {response}");
             }
-            else
+            catch (Exception ex)
             {
-                DictionaryEntry[] myArr = new DictionaryEntry[conversation.Count];
-                conversation.CopyTo(myArr, 0);
-
-
-                foreach (var msg in myArr)
-                    chat.AppendMessage(new ChatMessage(ChatMessageRole.FromString((string)msg.Key), (string)msg.Value));
+                _logger.LogError(ex, "Something went wrong");
+                throw;
             }
-
-
-            conversation.Add(USR_MESSAGE, message);
-            chat.AppendUserInput(message);
-
-            string response = await chat.GetResponseFromChatbotAsync();
-
-            conversation.Add(SYS_MESSAGE, response);
-
-            _memoryCache.Set(chatId, conversation);
-
-            return Ok(response);
         }
 
+        [HttpPost("Start/{ContextId}")]
+        public async Task<IActionResult> StatChatAsync([FromRoute(Name = "ContextId")] int contextId)
+        {
+            try
+            {
+                var teste = _chatContext.Contexts.ToList();
+                var context = _chatContext.Contexts.FirstOrDefault(x => x.Id == contextId);
+
+                if (context == null)
+                    return BadRequest($"Context \"{contextId}\" does not exist.");
+
+                string chatId = Guid.NewGuid().ToString();
+                OpenAIAPI api = new OpenAIAPI("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");
+                var chat = api.Chat.CreateConversation();
+
+                List<Chat> conversation = new List<Chat>();
+
+                _memoryCache.Set(chatId, conversation);
+
+                //conversation.Add(new Chat { Role = USR_MESSAGE, Content = context.Prompt });
+                chat.AppendUserInput(context.Prompt);
+
+                string response = await chat.GetResponseFromChatbotAsync();
+
+                conversation.Add(new Chat { Role = SYS_MESSAGE, Content = response });
+
+                _memoryCache.Set(chatId, conversation);
+
+                return Ok(new {id = chatId, content = response });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Something went wrong");
+                throw;
+            }
+        }
     }
 }
