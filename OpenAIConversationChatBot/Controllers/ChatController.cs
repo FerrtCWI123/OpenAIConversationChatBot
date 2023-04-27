@@ -165,6 +165,19 @@ namespace GPTConversationChatBot.Controllers
 
                         return BadRequest($"O numero maximo de interações({INTERATION_LIMIT}) do usuário foi atingido");
                     }
+                    else if(conversation.Count() == 1 && conversation[0].Role.Equals(CONTEXT_MESSAGE))
+                    {
+                        var newChat = $"Using the follow context: {conversation[0].Content} /n I want continue the conversation with the message {message}";
+                        conversation = new List<Chat> { new Chat { Role = USR_MESSAGE, Content = newChat } };
+
+                        chat.AppendUserInput(newChat);
+                        string responseContext = await chat.GetResponseFromChatbotAsync();
+
+                        conversation.Add(new Chat { Role = SYS_MESSAGE, Content = message });
+                        _memoryCache.Set(chatId, conversation);
+
+                        return Ok(responseContext);
+                    }
 
                     foreach (var msg in conversation)
                         chat.AppendMessage(new ChatMessage(ChatMessageRole.FromString(msg.Role), msg.Content));
