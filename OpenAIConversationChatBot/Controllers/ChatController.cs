@@ -7,6 +7,7 @@ using OpenAI_API.Chat;
 using OpenAIConversationChatBot;
 using OpenAIConversationChatBot.DTOs;
 using OpenAIConversationChatBot.Models;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Specialized;
@@ -144,7 +145,7 @@ namespace GPTConversationChatBot.Controllers
             try
             {
                 string chatId = id;
-                OpenAIAPI api = new OpenAIAPI("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");
+                OpenAIAPI api = new OpenAIAPI("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");
                 var chat = api.Chat.CreateConversation();
 
                 List<Chat> conversation = _memoryCache.Get<List<Chat>>(chatId);
@@ -167,7 +168,10 @@ namespace GPTConversationChatBot.Controllers
                     }
                     else if(conversation.Count() == 1 && conversation[0].Role.Equals(CONTEXT_MESSAGE))
                     {
-                        var newChat = $"Using the follow context: {conversation[0].Content} /n I want continue the conversation with the message {message}";
+                        var newChat = $"- Using the follow context: {Environment.NewLine}{Environment.NewLine}" +
+                                      $" {conversation[0].Content}{Environment.NewLine}{Environment.NewLine}" +
+                                      $"- Continue the conversation(with a single message) pretending you are a person with the user send the next message \"{message}\"";
+
                         conversation = new List<Chat> { new Chat { Role = USR_MESSAGE, Content = newChat } };
 
                         chat.AppendUserInput(newChat);
@@ -214,7 +218,7 @@ namespace GPTConversationChatBot.Controllers
                     return BadRequest($"Context \"{contextId}\" does not exist.");
 
                 string chatId = Guid.NewGuid().ToString();
-                OpenAIAPI api = new OpenAIAPI("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");
+                OpenAIAPI api = new OpenAIAPI("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");
                 var chat = api.Chat.CreateConversation();
 
                 List<Chat> conversation = new List<Chat>();
