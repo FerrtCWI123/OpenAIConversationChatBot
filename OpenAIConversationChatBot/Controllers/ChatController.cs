@@ -145,7 +145,7 @@ namespace GPTConversationChatBot.Controllers
             try
             {
                 string chatId = id;
-                OpenAIAPI api = new OpenAIAPI("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");
+                OpenAIAPI api = new OpenAIAPI("key");
                 var chat = api.Chat.CreateConversation();
 
                 List<Chat> conversation = _memoryCache.Get<List<Chat>>(chatId);
@@ -170,7 +170,7 @@ namespace GPTConversationChatBot.Controllers
                     {
                         var newChat = $"- Using the follow context: {Environment.NewLine}{Environment.NewLine}" +
                                       $" {conversation[0].Content}{Environment.NewLine}{Environment.NewLine}" +
-                                      $"- Continue the conversation(with a single message) pretending you are a person with the user send the next message \"{message}\"";
+                                      $"- Continue the conversation(with a single message) pretending you are a person and answer the user message \"{message}\"";
 
                         conversation = new List<Chat> { new Chat { Role = USR_MESSAGE, Content = newChat } };
 
@@ -218,7 +218,7 @@ namespace GPTConversationChatBot.Controllers
                     return BadRequest($"Context \"{contextId}\" does not exist.");
 
                 string chatId = Guid.NewGuid().ToString();
-                OpenAIAPI api = new OpenAIAPI("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");
+                OpenAIAPI api = new OpenAIAPI("key");
                 var chat = api.Chat.CreateConversation();
 
                 List<Chat> conversation = new List<Chat>();
